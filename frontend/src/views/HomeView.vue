@@ -1,10 +1,14 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import api from '../api'
+
+const router = useRouter()
 
 const lofts = ref([])
 const rolls = ref([])
 const dips = ref([])
+const coupons = ref([])
 const error = ref('')
 const panelError = ref('')
 const selectedId = ref(null)
@@ -39,6 +43,18 @@ const selectedDips = computed(() => {
   return dips.value.filter((d) => d.rollId === selectedId.value)
 })
 
+const activeCoupons = computed(() =>
+  coupons.value.filter((c) => c.rollId === selectedId.value && !c.voidedAt)
+)
+
+// 放行固化读取的是未作废且起泡级数为 0 的最新条。
+const passingCoupon = computed(() =>
+  activeCoupons.value
+    .filter((c) => c.blisterGrade === 0)
+    .sort((a, b) => new Date(b.inspectedAt) - new Date(a.inspectedAt) || b.id - a.id)[0] ||
+  null
+)
+
 const recentFeed = computed(() => dips.value.slice(0, 12))
 
 async function load() {
@@ -57,6 +73,11 @@ async function load() {
   }
 }
 
+async function loadCoupons(rollId) {
+  const { data } = await api.get('/coupons/', { params: { rollId } })
+  coupons.value = data.results || data
+}
+
 function openRoll(roll) {
   selectedId.value = roll.id
   panelError.value = ''
@@ -64,11 +85,20 @@ function openRoll(roll) {
   dipForm.resinPct = 28
   dipForm.cureHours = ''
   dipForm.notes = ''
+  coupons.value = []
+  loadCoupons(roll.id).catch(() => {
+    coupons.value = []
+  })
 }
 
 function closePanel() {
   selectedId.value = null
   panelError.value = ''
+  coupons.value = []
+}
+
+function goCoupons() {
+  router.push({ name: 'coupons', query: { rollId: selectedId.value } })
 }
 
 async function setStatus(status) {
@@ -83,7 +113,7 @@ async function setStatus(status) {
     panelError.value =
       data?.status?.[0] ||
       data?.detail ||
-      '状态更新失败（标「已固化」需最近浸渍固化时长 ≥ 12 小时）'
+      '状态更新失败'
   } finally {
     panelBusy.value = false
   }
@@ -133,7 +163,7 @@ onMounted(load)
     <header class="rack-head">
       <div>
         <h1>帆布间晾晒架</h1>
-        <p class="sub">按帆布间挂卷；点选布卷登记浸渍或标固化。固化规则：最近浸渍时长 ≥ 12 小时。</p>
+        <p class="sub">按帆布间挂卷；点选布卷登记浸渍或标固化。固化须同时满足：最近浸渍时长 ≥ 12 小时，且有未作废、起泡级数 0 的盐雾试片合格条。</p>
       </div>
       <button class="btn secondary" type="button" @click="load">刷新架面</button>
     </header>
@@ -212,6 +242,27 @@ onMounted(load)
       </div>
       <p v-if="selected.notes" class="hint">{{ selected.notes }}</p>
       <p v-if="panelError" class="error">{{ panelError }}</p>
+
+      <div class="drawer-coupons panel-inner">
+        <div class="coupon-head">
+          <h3>盐雾试片合格条</h3>
+          <button class="btn secondary btn-sm" type="button" @click="goCoupons">
+            去盐雾试片页
+          </button>
+        </div>
+        <p v-if="passingCoupon" class="coupon-line">
+          现有合格条：第 {{ passingCoupon.stripNo }} 条，起泡 0 级，
+          {{ new Date(passingCoupon.inspectedAt).toLocaleString() }}，
+          检验人 {{ passingCoupon.inspectorName }}。是否放行仍以后端校验为准。
+        </p>
+        <p v-else class="error coupon-line">
+          本卷没有未作废且起泡级数为 0 的合格条，不能放行固化。
+        </p>
+        <p v-if="activeCoupons.some((c) => c.blisterGrade !== 0)" class="hint">
+          另有 {{ activeCoupons.filter((c) => c.blisterGrade !== 0).length }}
+          张起泡级数非 0 的条，不能用于放行。
+        </p>
+      </div>
 
       <div class="drawer-actions">
         <button

@@ -4,14 +4,16 @@ import LoginView from '../views/LoginView.vue'
 import HomeView from '../views/HomeView.vue'
 import RollsView from '../views/RollsView.vue'
 import DipsView from '../views/DipsView.vue'
+import CouponsView from '../views/CouponsView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: '/login', name: 'login', component: LoginView, meta: { public: true } },
     { path: '/', name: 'rack', component: HomeView },
-    { path: '/rolls', name: 'rolls', component: RollsView, meta: { secondary: true } },
-    { path: '/dips', name: 'dips', component: DipsView, meta: { secondary: true } },
+    { path: '/coupons', name: 'coupons', component: CouponsView },
+    { path: '/rolls', name: 'rolls', component: RollsView },
+    { path: '/dips', name: 'dips', component: DipsView },
   ],
 })
 

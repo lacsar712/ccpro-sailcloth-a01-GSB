@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 
 
@@ -58,3 +59,45 @@ class DipRun(models.Model):
 
     def __str__(self):
         return f"Dip@{self.roll_id} {self.started_at}"
+
+
+class SaltSprayCoupon(models.Model):
+    """盐雾试片合格条：起泡级数 0 才算合格，可由管理员作废。"""
+
+    BLISTER_GRADE_CHOICES = [(i, str(i)) for i in range(6)]
+
+    roll = models.ForeignKey(
+        ClothRoll, on_delete=models.CASCADE, related_name="salt_coupons"
+    )
+    strip_no = models.PositiveIntegerField()
+    blister_grade = models.PositiveSmallIntegerField(choices=BLISTER_GRADE_CHOICES)
+    inspected_at = models.DateTimeField()
+    inspector = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="salt_coupons",
+    )
+    voided_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["roll_id", "strip_no", "-id"]
+        constraints = [
+            # 同卷未作废条号不得重复；作废后条号可重新使用。
+            models.UniqueConstraint(
+                fields=["roll", "strip_no"],
+                condition=models.Q(voided_at__isnull=True),
+                name="uniq_strip_no_per_roll_when_active",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(blister_grade__gte=0, blister_grade__lte=5),
+                name="blister_grade_0_to_5",
+            ),
+        ]
+
+    @property
+    def is_void(self) -> bool:
+        return self.voided_at is not None
+
+    def __str__(self):
+        return f"Coupon roll={self.roll_id} #{self.strip_no} grade={self.blister_grade}"

@@ -5,7 +5,7 @@ from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
-from core.models import ClothRoll, DipRun, Loft
+from core.models import ClothRoll, DipRun, Loft, SaltSprayCoupon
 
 User = get_user_model()
 
@@ -66,10 +66,10 @@ class Command(BaseCommand):
             [
                 DipRun(
                     roll=r1,
-                    started_at=now - timedelta(hours=8),
+                    started_at=now - timedelta(hours=20),
                     resin_pct=Decimal("28.50"),
-                    cure_hours=None,
-                    notes="固化计时中",
+                    cure_hours=Decimal("13.50"),
+                    notes="固化时长已满 12 小时，但盐雾试片尚无起泡级数 0 的合格条",
                 ),
                 DipRun(
                     roll=r2,
@@ -87,9 +87,29 @@ class Command(BaseCommand):
                 ),
             ]
         )
+        SaltSprayCoupon.objects.bulk_create(
+            [
+                # R-01：时长够但零合格条——唯一一张条起泡级数 2，放行固化应被挡住。
+                SaltSprayCoupon(
+                    roll=r1,
+                    strip_no=1,
+                    blister_grade=2,
+                    inspected_at=now - timedelta(hours=2),
+                    inspector=worker,
+                ),
+                # R-03：历史已固化卷，留存一张起泡级数 0 的合格条。
+                SaltSprayCoupon(
+                    roll=r3,
+                    strip_no=1,
+                    blister_grade=0,
+                    inspected_at=now - timedelta(days=1, hours=20),
+                    inspector=worker,
+                ),
+            ]
+        )
         self.stdout.write(
             self.style.SUCCESS(
                 f"种子完成：帆布间 {Loft.objects.count()}，布卷 {ClothRoll.objects.count()}，"
-                f"浸渍 {DipRun.objects.count()}"
+                f"浸渍 {DipRun.objects.count()}，盐雾试片 {SaltSprayCoupon.objects.count()}"
             )
         )

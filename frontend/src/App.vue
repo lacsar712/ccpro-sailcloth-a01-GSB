@@ -8,6 +8,10 @@ const router = useRouter()
 const auth = useAuthStore()
 const showNav = computed(() => route.name !== 'login')
 
+const roleLabel = computed(() =>
+  auth.user?.role === 'admin' ? '管理员' : '操作工'
+)
+
 function logout() {
   auth.logout()
   router.push({ name: 'login' })
@@ -18,23 +22,24 @@ function logout() {
   <div v-if="!showNav">
     <router-view />
   </div>
-  <div v-else class="layout">
-    <aside class="side">
+  <div v-else class="shell">
+    <header class="topbar">
       <div class="brand">
         <span class="mark">帆</span>
         <strong>SailCloth</strong>
         <small>浸渍防水台</small>
       </div>
-      <nav>
+      <nav class="topnav">
         <router-link to="/">晾晒架</router-link>
-      </nav>
-      <div class="nav-secondary">
-        <p class="nav-sec-label">台账（次要）</p>
+        <router-link to="/coupons">盐雾试片</router-link>
         <router-link to="/rolls">布卷台账</router-link>
         <router-link to="/dips">浸渍台账</router-link>
+      </nav>
+      <div class="topuser">
+        <span class="who">{{ auth.user?.username }} · {{ roleLabel }}</span>
+        <button class="linkish" type="button" @click="logout">退出</button>
       </div>
-      <button class="linkish" type="button" @click="logout">退出 {{ auth.user?.username }}</button>
-    </aside>
+    </header>
     <main class="content">
       <router-view />
     </main>

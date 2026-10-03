@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from .models import ClothRoll, DipRun
+from .models import ClothRoll, DipRun, SaltSprayCoupon
 
 MIN_CURE_HOURS_FOR_CURED = Decimal("12")
 
@@ -13,10 +13,22 @@ def latest_dip_run(roll: ClothRoll) -> DipRun | None:
     return roll.dip_runs.order_by("-started_at", "-id").first()
 
 
+def latest_passing_coupon(roll: ClothRoll) -> SaltSprayCoupon | None:
+    """该卷未作废且起泡级数为 0 的最新盐雾试片条。"""
+    return (
+        SaltSprayCoupon.objects.filter(
+            roll=roll, voided_at__isnull=True, blister_grade=0
+        )
+        .order_by("-inspected_at", "-id")
+        .first()
+    )
+
+
 def can_mark_roll_cured(roll: ClothRoll) -> tuple[bool, str]:
     """
     布卷转为「已固化」(cured) 的前提：
-    最近一条浸渍记录的固化时长已记录，且 >= 12 小时。
+    1. 最近一条浸渍记录的固化时长已记录，且 >= 12 小时；
+    2. 该卷存在一张未作废且起泡级数为 0 的盐雾试片合格条。
     """
     latest = latest_dip_run(roll)
     if latest is None:
@@ -28,4 +40,6 @@ def can_mark_roll_cured(roll: ClothRoll) -> tuple[bool, str]:
             False,
             f"最近浸渍固化时长 {latest.cure_hours} 小时低于 {MIN_CURE_HOURS_FOR_CURED} 小时，不能标记为已固化",
         )
+    if latest_passing_coupon(roll) is None:
+        return False, "缺少未作废且起泡级数为 0 的盐雾试片合格条，不能标记为已固化"
     return True, ""
