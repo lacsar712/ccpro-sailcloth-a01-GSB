@@ -1,3 +1,5 @@
+from django.conf import settings
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
 
@@ -58,3 +60,39 @@ class DipRun(models.Model):
 
     def __str__(self):
         return f"Dip@{self.roll_id} {self.started_at}"
+
+
+class SaltSprayCoupon(models.Model):
+    """盐雾试片检验条：标「已固化」前须有一张未作废且起泡级数为 0 的条。"""
+
+    BLISTER_MIN = 0
+    BLISTER_MAX = 5
+
+    roll = models.ForeignKey(
+        ClothRoll, on_delete=models.CASCADE, related_name="salt_spray_coupons"
+    )
+    coupon_no = models.PositiveIntegerField(validators=[MinValueValidator(1)])
+    blister_grade = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(BLISTER_MIN), MaxValueValidator(BLISTER_MAX)]
+    )
+    inspected_at = models.DateTimeField()
+    inspector = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="salt_spray_coupons",
+    )
+    voided_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["roll_id", "coupon_no"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["roll", "coupon_no"],
+                condition=models.Q(voided_at__isnull=True),
+                name="uniq_active_coupon_no_per_roll",
+            )
+        ]
+
+    def __str__(self):
+        return f"Coupon@{self.roll_id}#{self.coupon_no} 起泡{self.blister_grade}级"

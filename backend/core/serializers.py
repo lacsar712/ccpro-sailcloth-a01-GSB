@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import ClothRoll, DipRun, Loft
+from .models import ClothRoll, DipRun, Loft, SaltSprayCoupon
 from .rules import can_mark_roll_cured
 
 
@@ -93,3 +93,72 @@ class DipRunSerializer(serializers.ModelSerializer):
             "created_at",
         )
         read_only_fields = ("id", "rollCode", "loftName", "created_at")
+
+
+class SaltSprayCouponSerializer(serializers.ModelSerializer):
+    rollId = serializers.PrimaryKeyRelatedField(
+        source="roll", queryset=ClothRoll.objects.all()
+    )
+    couponNo = serializers.IntegerField(
+        source="coupon_no",
+        min_value=1,
+        error_messages={
+            "min_value": "条号须为从 1 起的正整数",
+            "invalid": "条号须为从 1 起的正整数",
+        },
+    )
+    blisterGrade = serializers.IntegerField(
+        source="blister_grade",
+        min_value=SaltSprayCoupon.BLISTER_MIN,
+        max_value=SaltSprayCoupon.BLISTER_MAX,
+        error_messages={
+            "min_value": "起泡级数只允许 0 到 5 的整数",
+            "max_value": "起泡级数只允许 0 到 5 的整数",
+            "invalid": "起泡级数只允许 0 到 5 的整数",
+        },
+    )
+    inspectedAt = serializers.DateTimeField(source="inspected_at")
+    voidedAt = serializers.DateTimeField(source="voided_at", read_only=True)
+    inspectorName = serializers.CharField(source="inspector.username", read_only=True)
+    rollCode = serializers.CharField(source="roll.roll_code", read_only=True)
+    loftName = serializers.CharField(source="roll.loft.name", read_only=True)
+
+    class Meta:
+        model = SaltSprayCoupon
+        fields = (
+            "id",
+            "rollId",
+            "rollCode",
+            "loftName",
+            "couponNo",
+            "blisterGrade",
+            "inspectedAt",
+            "inspector",
+            "inspectorName",
+            "voidedAt",
+            "created_at",
+        )
+        read_only_fields = (
+            "id",
+            "rollCode",
+            "loftName",
+            "inspector",
+            "inspectorName",
+            "voidedAt",
+            "created_at",
+        )
+
+    def validate(self, attrs):
+        roll = attrs.get("roll") or getattr(self.instance, "roll", None)
+        coupon_no = attrs.get("coupon_no") or getattr(self.instance, "coupon_no", None)
+        if roll and coupon_no:
+            qs = SaltSprayCoupon.objects.filter(
+                roll=roll, coupon_no=coupon_no, voided_at__isnull=True
+            )
+            if self.instance:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise serializers.ValidationError(
+                    {"couponNo": "该布卷已存在未作废的同号盐雾试片条"}
+                )
+        return attrs

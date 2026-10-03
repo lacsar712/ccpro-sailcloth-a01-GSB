@@ -62,7 +62,7 @@ async function save() {
       data?.status?.[0] ||
       data?.rollCode?.[0] ||
       data?.detail ||
-      '保存失败（若标为已固化，请确认最近浸渍固化时长 ≥ 12 小时）'
+      '保存失败（若标为已固化，需最近浸渍固化时长 ≥ 12 小时且有未作废的 0 级盐雾合格条）'
   }
 }
 
@@ -72,7 +72,7 @@ onMounted(load)
 <template>
   <div>
     <h1>布卷台账</h1>
-    <p class="sub">次要列表入口。日常请在晾晒架点选布卷操作；此处用于新建/改卷号等台账维护。标「已固化」仍受固化时长 ≥ 12 小时约束。</p>
+    <p class="sub">次要列表入口。日常请在晾晒架点选布卷操作；此处用于新建/改卷号等台账维护。标「已固化」仍受固化时长 ≥ 12 小时且有未作废 0 级盐雾合格条约束。</p>
     <p v-if="error" class="error">{{ error }}</p>
 
     <form class="panel row" @submit.prevent="save">

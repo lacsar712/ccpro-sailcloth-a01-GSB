@@ -5,7 +5,7 @@ from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
-from core.models import ClothRoll, DipRun, Loft
+from core.models import ClothRoll, DipRun, Loft, SaltSprayCoupon
 
 User = get_user_model()
 
@@ -60,6 +60,9 @@ class Command(BaseCommand):
         r3 = ClothRoll.objects.create(
             loft=loft, roll_code="R-03", status=ClothRoll.STATUS_CURED, fabric_weight_gsm=450
         )
+        r4 = ClothRoll.objects.create(
+            loft=loft, roll_code="R-04", status=ClothRoll.STATUS_DIPPING, fabric_weight_gsm=400
+        )
 
         now = timezone.now()
         DipRun.objects.bulk_create(
@@ -85,11 +88,45 @@ class Command(BaseCommand):
                     cure_hours=Decimal("14.50"),
                     notes="已完成固化",
                 ),
+                DipRun(
+                    roll=r4,
+                    started_at=now - timedelta(hours=20),
+                    resin_pct=Decimal("29.00"),
+                    cure_hours=Decimal("16.00"),
+                    notes="时长已够，但零合格条，不可标 cured",
+                ),
+            ]
+        )
+
+        SaltSprayCoupon.objects.bulk_create(
+            [
+                SaltSprayCoupon(
+                    roll=r3,
+                    coupon_no=1,
+                    blister_grade=0,
+                    inspected_at=now - timedelta(days=2),
+                    inspector=admin,
+                ),
+                SaltSprayCoupon(
+                    roll=r1,
+                    coupon_no=1,
+                    blister_grade=2,
+                    inspected_at=now - timedelta(hours=3),
+                    inspector=worker,
+                ),
+                SaltSprayCoupon(
+                    roll=r1,
+                    coupon_no=2,
+                    blister_grade=0,
+                    inspected_at=now - timedelta(hours=5),
+                    inspector=worker,
+                    voided_at=now - timedelta(hours=1),
+                ),
             ]
         )
         self.stdout.write(
             self.style.SUCCESS(
                 f"种子完成：帆布间 {Loft.objects.count()}，布卷 {ClothRoll.objects.count()}，"
-                f"浸渍 {DipRun.objects.count()}"
+                f"浸渍 {DipRun.objects.count()}，盐雾试片条 {SaltSprayCoupon.objects.count()}"
             )
         )

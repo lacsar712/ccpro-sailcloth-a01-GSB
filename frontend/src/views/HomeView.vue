@@ -5,6 +5,7 @@ import api from '../api'
 const lofts = ref([])
 const rolls = ref([])
 const dips = ref([])
+const coupons = ref([])
 const error = ref('')
 const panelError = ref('')
 const selectedId = ref(null)
@@ -39,19 +40,35 @@ const selectedDips = computed(() => {
   return dips.value.filter((d) => d.rollId === selectedId.value)
 })
 
+const selectedCoupons = computed(() => {
+  if (!selectedId.value) return []
+  return coupons.value
+    .filter((c) => c.rollId === selectedId.value)
+    .slice()
+    .sort((a, b) => new Date(b.inspectedAt) - new Date(a.inspectedAt))
+})
+
+const latestPassingCoupon = computed(() => {
+  return (
+    selectedCoupons.value.find((c) => !c.voidedAt && c.blisterGrade === 0) || null
+  )
+})
+
 const recentFeed = computed(() => dips.value.slice(0, 12))
 
 async function load() {
   error.value = ''
   try {
-    const [l, r, d] = await Promise.all([
+    const [l, r, d, c] = await Promise.all([
       api.get('/lofts/'),
       api.get('/rolls/'),
       api.get('/dips/'),
+      api.get('/coupons/'),
     ])
     lofts.value = l.data.results || l.data
     rolls.value = r.data.results || r.data
     dips.value = d.data.results || d.data
+    coupons.value = c.data.results || c.data
   } catch {
     error.value = '晾晒架加载失败'
   }
@@ -83,7 +100,7 @@ async function setStatus(status) {
     panelError.value =
       data?.status?.[0] ||
       data?.detail ||
-      '状态更新失败（标「已固化」需最近浸渍固化时长 ≥ 12 小时）'
+      '状态更新失败（标「已固化」需最近浸渍固化时长 ≥ 12 小时，且有未作废的 0 级盐雾合格条）'
   } finally {
     panelBusy.value = false
   }
@@ -133,7 +150,7 @@ onMounted(load)
     <header class="rack-head">
       <div>
         <h1>帆布间晾晒架</h1>
-        <p class="sub">按帆布间挂卷；点选布卷登记浸渍或标固化。固化规则：最近浸渍时长 ≥ 12 小时。</p>
+        <p class="sub">按帆布间挂卷；点选布卷登记浸渍或标固化。固化规则：最近浸渍时长 ≥ 12 小时，且有一张未作废、起泡级数为 0 的盐雾试片合格条。</p>
       </div>
       <button class="btn secondary" type="button" @click="load">刷新架面</button>
     </header>
@@ -267,6 +284,30 @@ onMounted(load)
           </li>
         </ul>
         <p v-else class="hint" style="margin:0">本卷尚无浸渍</p>
+      </div>
+
+      <div class="drawer-history">
+        <h3>本卷盐雾试片</h3>
+        <p v-if="latestPassingCoupon" class="hint" style="margin:0">
+          最近合格条：{{ latestPassingCoupon.couponNo }} 号 · 起泡 0 级 ·
+          {{ new Date(latestPassingCoupon.inspectedAt).toLocaleString() }} ·
+          {{ latestPassingCoupon.inspectorName }}
+        </p>
+        <p v-else class="error" style="margin:0">
+          本卷暂无未作废且起泡级数为 0 的合格条，不能标已固化
+        </p>
+        <ul v-if="selectedCoupons.length" class="feed-list compact">
+          <li v-for="row in selectedCoupons" :key="row.id">
+            <span>{{ row.couponNo }} 号</span>
+            <span>起泡 {{ row.blisterGrade }} 级</span>
+            <span>{{ new Date(row.inspectedAt).toLocaleString() }}</span>
+            <span>{{ row.inspectorName }}</span>
+            <span v-if="row.voidedAt" class="feed-loft">已作废</span>
+          </li>
+        </ul>
+        <p class="hint" style="margin:0">
+          建条与作废请到 <router-link to="/coupons">盐雾试片专页</router-link> 办理。
+        </p>
       </div>
     </aside>
   </div>
